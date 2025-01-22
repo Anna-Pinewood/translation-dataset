@@ -64,7 +64,7 @@ class TranslationManager:
         self.exporter.export_to_excel(
             entries=entries,
             output_path=output_path,
-            translated_only=False  
+            translated_only=False
         )
 
     def update_from_excel(self, excel_path: Path) -> Dict[str, any]:

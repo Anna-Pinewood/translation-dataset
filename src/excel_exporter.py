@@ -1,8 +1,12 @@
 from pathlib import Path
+from openpyxl import load_workbook
 import pandas as pd
 import logging
 from typing import List, Dict, Optional
 from models import TranslationEntry
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.styles import Border, Side
+
 
 logger = logging.getLogger(__name__)
 
@@ -10,10 +14,10 @@ logger = logging.getLogger(__name__)
 class ExcelExporter:
     """Handles Excel export/import operations for translation data"""
 
-    REQUIRED_COLUMNS = {
+    REQUIRED_COLUMNS = [
         'idx', 'prompt', 'prompt_ru',
         'response', 'response_ru', 'is_response_unsecure'
-    }
+    ]
 
     def __init__(self):
         """Initialize ExcelExporter"""
@@ -66,11 +70,57 @@ class ExcelExporter:
                 df[col] = None
 
         # Reorder columns to match required order
-        df = df[list(self.REQUIRED_COLUMNS)]
+        df = df[self.REQUIRED_COLUMNS]
 
         # Export to Excel
         df.to_excel(output_path, index=False)
+        self.prettify_excel(output_path)
         logger.info("Successfully exported %d entries to Excel", len(df))
+
+    def prettify_excel(self, excel_path: str):
+        wb = load_workbook(excel_path)
+        ws = wb.active  # Get the active sheet
+        column_widths = {
+            "A": 10,  # idx
+            "B": 60,  # prompt
+            "C": 60,  # prompt_ru
+            "D": 60,  # response
+            "E": 60   # response_ru
+        }
+        bg_fill = PatternFill(start_color="C4E3EF",
+                              end_color="C4E3EF", fill_type="solid")
+        highlight_columns = ["C", "E"]  # A -> prompt_ru, C -> response_ru
+
+        for col_letter, width in column_widths.items():
+            ws.column_dimensions[col_letter].width = width  # Set column width
+
+        for row in ws.iter_rows():
+            for cell in row:
+                # Apply text alignment
+                cell.alignment = Alignment(
+                    horizontal="left", vertical="top", wrap_text=True)
+                # Set font size for all cells
+                cell.font = Font(size=14)
+                # Set bg color
+                if cell.column_letter in highlight_columns:
+                    cell.fill = bg_fill
+
+        for cell in ws[1]:  # Iterate through the first row (header row)
+            # Make the font bold and set size
+            cell.font = Font(bold=True, size=14)
+            cell.alignment = Alignment(
+                horizontal="center", vertical="center")  # Center the text
+
+        thin_border = Border(left=Side(style="thin"), right=Side(
+            style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+
+        # Columns A-F (1-6)
+        for row in ws.iter_rows(min_col=1, max_col=6, min_row=1, max_row=ws.max_row):
+            for cell in row:
+                cell.border = thin_border
+
+        logger.info("Prettified Excel file")
+        wb.save(excel_path)
 
     def update_from_excel(
         self,
@@ -103,7 +153,7 @@ class ExcelExporter:
         df = pd.read_excel(excel_path)
 
         # Validate structure
-        missing_cols = self.REQUIRED_COLUMNS - set(df.columns)
+        missing_cols = set(self.REQUIRED_COLUMNS) - set(df.columns)
         if missing_cols:
             raise ValueError(
                 f"Excel file missing required columns: {missing_cols}")
