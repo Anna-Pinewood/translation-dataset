@@ -62,6 +62,8 @@ class LLMInterface:
     def get_response_content(response: litellm.ModelResponse) -> str | dict:
         try:
             result = response['choices'][0]['message']['content']
+            if "```json" in result:
+                result = result[result.find("```json") + 7:result.rfind("```")]
             return json.loads(result)
         except json.JSONDecodeError:
             return result
