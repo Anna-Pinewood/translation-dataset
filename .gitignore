@@ -11,3 +11,10 @@ wheels/
 
 # data
 data
+excel_outputs
+
+# notebooks
+notebooks
+
+# configs
+*.yaml

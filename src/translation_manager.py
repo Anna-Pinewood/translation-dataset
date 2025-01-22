@@ -6,6 +6,7 @@ from pathlib import Path
 import json
 import litellm
 from config import CONFIG
+from excel_exporter import ExcelExporter
 from llm_interface import LLMInterface
 from models import TranslationEntry
 
@@ -26,10 +27,17 @@ class TranslationManager:
     ]
 }'''
 
-    def __init__(self, path: Path, llm_config: Optional[dict] = None):
+    def __init__(
+            self,
+            path: Path,
+            llm_config: Optional[dict] = None,
+            exporter: Optional[ExcelExporter] = None):
         """Initialize manager with either Dataset or DataFrame path."""
         logger.info("Initializing TranslationManager with path: %s", path)
         self._path = path
+
+        # Initialize exporter
+        self.exporter = exporter or ExcelExporter()
 
         if str(path).endswith('.pkl'):
             self._df = pd.read_pickle(path)
@@ -46,6 +54,47 @@ class TranslationManager:
         self.llm = None
         if llm_config:
             self.llm = LLMInterface(**llm_config)
+
+    def export_to_excel(
+            self,
+            output_path: Path,
+            entries: List[TranslationEntry]) -> None:
+        logger.info(
+            f"Exporting {len(entries)} selected entries to Excel: {output_path}")
+        self.exporter.export_to_excel(
+            entries=entries,
+            output_path=output_path,
+            translated_only=False  
+        )
+
+    def update_from_excel(self, excel_path: Path) -> Dict[str, any]:
+        """
+        Update entries from Excel file.
+
+        Parameters
+        ----------
+        excel_path : Path
+            Path to Excel file with updated translations
+
+        Returns
+        -------
+        Dict[str, any]
+            Update results
+        """
+        # Create dictionary of current entries
+        current_entries = {
+            idx: self.get_entry(idx)
+            for idx in range(len(self._df))
+        }
+
+        # Get updated entries from Excel
+        updated_entries = self.exporter.update_from_excel(
+            excel_path=excel_path,
+            current_entries=current_entries
+        )
+
+        # Update entries in DataFrame using existing method
+        return self.update_entries(updated_entries)
 
     @staticmethod
     def _convert_dataset_to_df(dataset_path: Path) -> pd.DataFrame:
