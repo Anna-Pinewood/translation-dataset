@@ -1,7 +1,7 @@
-from abc import ABC, abstractmethod
 import json
 import logging
 import litellm
+from litellm import token_counter
 from config import CONFIG
 logger = logging.getLogger(__name__)
 
@@ -67,3 +67,8 @@ class LLMInterface:
             return json.loads(result)
         except json.JSONDecodeError:
             return result
+
+    def calculate_tokens(self, text: str) -> int:
+        messages = [{"role": "user",
+                    "content": text}]
+        return token_counter(model=self.model_name, messages=messages)

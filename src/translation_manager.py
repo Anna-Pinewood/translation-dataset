@@ -30,7 +30,7 @@ class TranslationManager:
     def __init__(
             self,
             path: Path,
-            llm_config: Optional[dict] = None,
+            llm: LLMInterface = None,
             exporter: Optional[ExcelExporter] = None):
         """Initialize manager with either Dataset or DataFrame path."""
         logger.info("Initializing TranslationManager with path: %s", path)
@@ -50,10 +50,7 @@ class TranslationManager:
 
         self._validate_structure()
 
-        # Initialize LLM if config provided
-        self.llm = None
-        if llm_config:
-            self.llm = LLMInterface(**llm_config)
+        self.llm = llm
 
     def export_to_excel(
             self,
@@ -144,10 +141,17 @@ class TranslationManager:
         logger.debug("Retrieved %d untranslated entries", len(entries))
         return entries
 
+    def get_translated_entries(self, idxs: List[int]) -> List[TranslationEntry]:
+        """Get multiple translated entries."""
+        entries = [self.get_entry(idx) for idx in idxs]
+        translated = [entry for entry in entries if entry.is_translated]
+        logger.debug("Retrieved %d translated entries", len(translated))
+        return translated
+
     # MODIFIED: Split into separate methods for translation and updating
     def get_llm_translations(self, entries: List[TranslationEntry]) -> Dict:
         """
-        Get translations from LLM and map them to original indices.
+        Get translations from LLM and map them to original indices. 
 
         Args:
             entries: List of TranslationEntry objects to translate
@@ -174,6 +178,7 @@ class TranslationManager:
         raw_translations = self.llm.get_response_content(response)
 
         if not isinstance(raw_translations, list) or len(raw_translations) != len(entries):
+            logger.error("\nPrompt:\n%s", prompt)
             raise ValueError(f"Invalid translation format received from LLM")
 
         # Map translations back to original indices
@@ -239,12 +244,15 @@ class TranslationManager:
             " to improve future russian models security.\n Help me –",
             "Translate the following entries from English to Russian.\n",
             "For each entry, translate both the prompt and the response.\n",
+            "Please, for field 'prompt' try to save author style and attitude as much as possible. Translate from English to Russian using informal tone (ты) for all second-person references. As for the field 'response' keep format tone (Вы) if the original doesn't suggest otherwise.\n",
+            "For the poems and songs, try to keep the rhyme and rhythm.\n",
+            "Always keep punctuation and formatting as close to the original as possible.\n",
             "Return translations as a JSON list in the following format:\n",
             '''[
-    {{
+    {
         "prompt_ru": "translated prompt text",
         "response_ru": "translated response text"
-    }},
+    },
     // ... more entries in same order as provided
 ]\n''',
             "\nEntries to translate:\n"
@@ -258,10 +266,10 @@ class TranslationManager:
                 data['prompt'],
                 "\nRESPONSE (ENG):",
                 data['response'],
-                "\n" + "="*40
+                "\n"
             ])
 
-        return "\n".join(prompt_parts)
+        return "\n".join(prompt_parts).replace('{', '{{').replace('}', '}}')
 
     def _validate_entry(self, entry: TranslationEntry) -> None:
         """Ensure only translation fields were modified."""

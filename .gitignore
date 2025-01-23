@@ -12,6 +12,7 @@ wheels/
 # data
 data
 excel_outputs
+excel_outputs_updated
 
 # notebooks
 notebooks
